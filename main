@@ -1,0 +1,162 @@
+      program Lid_Driven_Cavity
+      implicit none
+! NUMBER OF GRID IN X-DIRECTION 1 TO NX (REAL DOMAIN)
+! NUMBER OF GRID IN Y-DIRECTION 1 TO NY (REAL DOMAIN)
+      integer, parameter :: Nx=101,Ny=101
+      double precision , parameter :: Re=500.d0,dt=.001
+      integer :: i,j,it_st,it_eq
+      double precision :: dx,dy,err_st,err_eq,ae,aw,ap,at,ab,time
+      double precision , dimension(0:150,0:150) :: st,st_n,vt,vt_n,ref
+
+      dx=1.d0/dfloat(Nx-1)
+      dy=1.d0/dfloat(Ny-1)
+
+! Initialization
+      do i=1,Nx
+      do j=1,Ny
+       st_n(i,j)=0.d0
+       st(i,j)=0.d0
+
+       vt_n(i,j)=0.d0
+       vt(i,j)=0.d0
+
+       ref(i,j)=0.d0
+       enddo
+       enddo
+
+! Iterations Begins
+      it_st=0                  ! First Iteration
+      time=0
+      err_st=1.d0
+      do while(err_st.gt.0.0001)
+      write(*,*)"Steady-State-Loop",it_st
+      it_st=it_st+1
+      time=time+dt
+! Vorticity Equation
+      it_eq=0
+      err_eq=1.d0
+      write(*,*)" Vorticity-Loop : "
+      do while(err_eq.gt.0.001)
+
+       it_eq=it_eq+1
+       do i=1,Nx
+       do j=1,Ny
+        ref(i,j)=vt(i,j)   ! reference
+       enddo
+       enddo
+
+       do i=2,Nx-1
+       do j=2,Ny-1
+         ap=(1.d0/dt)+(2.d0/Re)*(1.d0/dx**2+1.d0/dy**2)
+         ae=(st(i,j+1)-st(i,j-1))/(4.d0*dx*dy)-1.d0/(Re*dx*dx)
+         aw=(st(i,j-1)-st(i,j+1))/(4.d0*dx*dy)-1.d0/(Re*dx*dx)
+         at=(st(i-1,j)-st(i+1,j))/(4.d0*dx*dy)-1.d0/(Re*dy*dy)
+         ab=(st(i+1,j)-st(i-1,j))/(4.d0*dx*dy)-1.d0/(Re*dy*dy)
+
+         vt(i,j)=((vt_n(i,j)/dt)-(ae*vt(i+1,j)+aw*vt(i-1,j)+
+     &       at*vt(i,j+1)+ab*vt(i,j-1)))/ap
+       enddo
+       enddo
+! B.C.
+       do i=1,Nx
+        vt(i,1)= -2.d0*st(i,2)/dy**2.d0
+        vt(i,Ny)=-2.d0*(st(i,Ny-1)+dy)/dy**2.d0
+       enddo
+       do j=2,Ny-1
+        vt(1,j)= -2.d0*st(2,j)/dx**2.d0
+        vt(Nx,j)=-2.d0*st(Nx-1,j)/dx**2.d0
+       enddo
+! convergence check
+      err_eq=0.d0
+      do i=1,Nx
+      do j=1,Ny
+       err_eq=dmax1(err_eq,dabs(vt(i,j)-ref(i,j)))
+      enddo
+      enddo
+      
+       write(*,*)err_eq
+
+      enddo
+
+      write(*,*)" Exit Vorticity Loop : ",it_eq,
+     & "and error is :",err_eq
+
+! Stream function
+      it_eq=0
+      err_eq=1.d0
+      write(*,*)" Stream-Function-Loop : "
+      do while(err_eq.gt.0.001)
+
+       it_eq=it_eq+1
+       do i=1,Nx
+       do j=1,Ny
+        ref(i,j)=st(i,j)   ! reference
+       enddo
+       enddo
+
+       do i=2,Nx-1
+       do j=2,Ny-1
+         ap=(-2.d0)*(1.d0/dx**2+1.d0/dy**2)
+         ae=1.d0/(dx*dx)
+         aw=1.d0/(dx*dx)
+         at=1.d0/(dy*dy)
+         ab=1.d0/(dy*dy)
+
+         st(i,j)=(-vt(i,j)-(ae*st(i+1,j)+aw*st(i-1,j)+
+     &       at*st(i,j+1)+ab*st(i,j-1)))/ap
+       enddo
+       enddo
+! B.C.
+       do i=1,Nx
+        st(i,1)= 0.d0 ! b-wall
+        st(i,Ny)=0.d0 ! t-wall
+       enddo
+       do j=2,Ny-1
+        st(1,j)= 0.d0 ! l-wall
+        st(Nx,j)=0.d0 ! r-wall
+       enddo
+! convergence check
+      err_eq=0.d0
+      do i=1,Nx
+      do j=1,Ny
+       err_eq=dmax1(err_eq,dabs(st(i,j)-ref(i,j)))
+      enddo
+      enddo
+         write(*,*)err_eq
+      enddo
+      write(*,*)" Exit Stream-Function-Loop : ",it_eq,
+     & "and error is :",err_eq
+
+      err_st=0.d0
+      do i=1,Nx
+      do j=1,Ny
+       err_st=dmax1(err_st,dabs(vt(i,j)-vt_n(i,j)))
+      enddo
+      enddo
+
+      do i=1,Nx
+      do j=1,Ny
+       vt_n(i,j)=vt(i,j)
+       st_n(i,j)=st(i,j)
+      enddo
+      enddo
+
+      write(*,*)"time is fucking",err_st,"time:",time
+      enddo
+    ! Output
+      open(1,file='output.dat')
+       write(1,120)
+120    format(11x,'Velocity U,V in X-Y direction')
+       write(1,*)
+       write(1,121)
+121    format(7x,'X',10x,'Y',21x,'U',22x,'V')
+       write(1,*)
+        do i = 1,Nx
+        do j = 1,Ny
+         write (1,122)(i-1)*dx,(j-1)*dy,st(i,j),vt(i,j)
+122      format (1x,f10.6,2x,f10.6,5x,f22.10,1x,f22.10)
+        enddo
+        enddo
+      close(1)
+
+      end program Lid_Driven_Cavity
